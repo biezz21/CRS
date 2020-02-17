@@ -1,0 +1,12 @@
+*/.ipynb_checkpoints/*
+.ipynb_checkpoints/*
+*/*.log
+*/*.pot
+*/*.pyc
+*/__pycache__/
+*/local_settings.py
+*/db.sqlite3
+*/db.sqlite3-journal
+*/media
+csv_file
+Expression_Profile.GCF_000004515.5_Glycine_max_v2.1.gene.txt

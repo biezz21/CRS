@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+{% load static %}
+<meta charset="utf-8">
+<head>
+	<link rel="stylesheet" type="text/css" href="static/semantic/semantic.css">
+	<script
+	  src="https://code.jquery.com/jquery-3.1.1.min.js"
+	  integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8="
+	  crossorigin="anonymous"></script>
+	<script src="static/semantic/semantic.js"></script>
+</head>
+
+
+<style>
+body {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+.box {
+  font: 10px sans-serif;
+}
+.box line,
+.box rect,
+.box circle {
+  stroke: #000;
+  stroke-width: 1px;
+}
+.box .center {
+  stroke-dasharray: 3,3;
+}
+.box .outlier {
+  fill: none;
+  stroke: #000;
+}
+.axis {
+  font: 10px sans-serif;
+}
+ 
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+ 
+.x.axis path { 
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+</style>
+
+
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script src="/static/box.js"></script>
+<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+<link rel="stylesheet" type="text/css" href="static/semantic/semantic.css">
+<script src="static/semantic/semantic.js"></script>
+
+
+
+<body>
+
+	<div class="ui container" style="height: 40">
+		<form method="GET" action="">
+			<input class="prompt" type="text" name="gene" placeholder="Search For...">
+			<input type="submit" value="Search"/>
+		</form>
+	</div>
+	<div class="ui container_table">
+		<table class="ui striped table">
+			<thead>
+				<tr>
+					<th>Gene Name</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for gene in genename %}
+				<tr>
+					<td>{{gene.Entrez_Gene_ID}}</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+	
+
+
+
+	<div id="chart_stage"></div>
+
+	<div id="chart_10"></div>
+
+	<div id="chart_30"></div>
+
+
+
+</body>
+
+
+<script>
+	//chart_stage
+	var labels = true; // show the text labels beside individual boxplots?
+	var margin_stage = {top: 30, right: 50, bottom: 200, left: 50};
+	var  width_stage = 300 - margin_stage.left - margin_stage.right;
+	var height_stage = 500 - margin_stage.top - margin_stage.bottom;
+		
+	var min = Infinity,
+	    max = -Infinity;
+		
+	// parse in the data	
+	d3.csv('{{csv_file_stage}}', function(error, csv) {
+		// using an array of arrays with
+		// data[n][2] 
+		// where n = number of columns in the csv file 
+		// data[i][0] = name of the ith column
+		// data[i][1] = array of values of ith column
+		
+		var stage_list = [];
+		for(var i = 0; i < csv.length; i++){
+				stage_list.push(csv[i].stage)
+			};
+		var set_stage = stage_list.reduce(function(a,b){
+	  		if (a.indexOf(b) < 0 ) a.push(b);
+	  			return a;
+	  		},[]);
+		
+		var data = [];
+		for (var i = 0; i <  set_stage.length; i ++){
+			data[i]    = [];
+			data[i][0] = [];
+			data[i][1] = [];
+			
+			data[i][0].push(set_stage[i])
+			
+			for (var j =0; j < csv.length; j++){
+				if(csv[j].stage == set_stage[i]){
+					data[i][1].push(Math.fround(csv[j].tpm));
+				};
+			}
+		}
+		
+		
+		csv.forEach(function(x){
+			var tpm_value = Math.fround(x.tpm)
+			if (tpm_value > max) max = tpm_value;
+			if (tpm_value < min) min = tpm_value;
+		})
+		var chart = d3.box()
+			.whiskers(iqr(1.5))
+			.height(height_stage)	
+			.domain([min, max])
+			.showLabels(labels);
+		var svg = d3.select("#chart_stage").append("svg")
+			.attr("width", width_stage + margin_stage.left + margin_stage.right)
+			.attr("height", height_stage + margin_stage.top + margin_stage.bottom)
+			.attr("class", "box")    
+			.append("g")
+			.attr("transform", "translate(" + margin_stage.left + "," + margin_stage.top + ")");
+		
+		// the x-axis
+		var x = d3.scale.ordinal()	   
+			.domain( data.map(function(d) {console.log(d[0]); return d[0] } ) )	    
+			.rangeRoundBands([0 , width_stage], 0.7, 0.3); 		
+		var xAxis = d3.svg.axis()
+			.scale(x)
+			.orient("bottom");
+		// the y-axis
+		var y = d3.scale.linear()
+			.domain([min, max])
+			.range([height_stage + margin_stage.top, 0 + margin_stage.top]);
+		
+		var yAxis = d3.svg.axis()
+	    .scale(y)
+	    .orient("left");
+		// draw the boxplots
+		var colorCodes = ['#513232','#CF1414'];
+		
+		svg.selectAll(".box")	   
+	      .data(data)
+		  .enter().append("g")
+			.attr("transform", function(d) {console.log(x(d[0])); return "translate(" +  x(d[0])  + "," + margin_stage.top + ")"; } )
+			.call(chart.width(x.rangeBand()))
+			.attr('fill',function(d,i) {for(var x=0; x < set_stage.length; x++)
+				if(i==x){console.log(colorCodes[x]);return colorCodes[x]}
+		})
+		      
+		// add a title
+		svg.append("text")
+	        .attr("x", (width_stage / 2))             
+	        .attr("y", 0 + (margin_stage.top / 2))
+	        .attr("text-anchor", "middle")  
+	        .style("font-size", "14px") 
+	        //.style("text-decoration", "underline")  
+	        .text("Gene_id : {{query}}");
+	 
+		 // draw y axis
+		svg.append("g")
+	        .attr("class", "y axis")
+	        .call(yAxis)
+			.append("text") // and text1
+			  .attr("transform", "rotate(-90)")
+			  .attr("y", -40)
+			  .attr('x', -150)
+			  .attr("dy", ".71em")
+			  .style("text-anchor", "end")
+			  .style("font-size", "10px") 
+			  .text("TPM");		
+		
+		// draw x axis
+		svg.append("g")
+		    .attr("class", "x axis")
+		    .attr("transform", "translate(0," + (height_stage  + margin_stage.top + 5) + ")")
+		    .call(xAxis)
+			.selectAll("text")
+				.attr("y", 15)
+			    .attr("x", -5)
+			    .attr("dy", ".35em")
+			    .attr("transform", "middle")
+			    .style("text-anchor", "start");
+
+
+	        //.text("treat"); 
+	});
+	// Returns a function to compute the interquartile range.
+	function iqr(k) {
+	  return function(d, i) {
+	    var q1 = d.quartiles[0],
+	        q3 = d.quartiles[2],
+	        iqr = (q3 - q1) * k,
+	        i = -1,
+	        j = d.length;
+	    while (d[++i] < q1 - iqr);
+	    while (d[--j] > q3 + iqr);
+	    return [i, j];
+	  };
+	}
+</script>
+
+
+	
+
+
+
+</body>
+<script>
+//chart_10
+	var labels = true; // show the text labels beside individual boxplots?
+	var margin_10 = {top: 30, right: 50, bottom: 200, left: 50};
+	var  width_10 = 1600 - margin_10.left - margin_10.right;
+	var height_10 = 500 - margin_10.top - margin_10.bottom;
+					
+	var min = Infinity,
+		max = -Infinity;
+					
+	// parse in the data
+	d3.csv('{{csv_file_10}}', function(error, csv) {
+	// using an array of arrays with
+	// data[n][2] 
+	// where n = number of columns in the csv file 
+	// data[i][0] = name of the ith column
+	// data[i][1] = array of values of ith column
+		
+		var cultivar_list = [];
+		for(var i = 0; i < csv.length; i++){
+				cultivar_list.push(csv[i].cultivar)
+			};
+		var set_cultivar = cultivar_list.reduce(function(a,b){
+	  		if (a.indexOf(b) < 0 ) a.push(b);
+	  			return a;
+	  		},[]);
+		
+		var data = [];
+		for (var i = 0; i <  set_cultivar.length; i ++){
+			data[i]    = [];
+			data[i][0] = [];
+			data[i][1] = [];
+			
+			data[i][0].push(set_cultivar[i])
+			
+			for (var j =0; j < csv.length; j++){
+				if(csv[j].cultivar == set_cultivar[i]){
+					data[i][1].push(Math.fround(csv[j].tpm));
+				};
+			}
+		}
+		
+		
+		csv.forEach(function(x){
+			var tpm_value = Math.fround(x.tpm)
+			if (tpm_value > max) max = tpm_value;
+			if (tpm_value < min) min = tpm_value;
+		})
+		var chart = d3.box()
+			.whiskers(iqr(1.5))
+			.height(height_10)	
+			.domain([min, max])
+			.showLabels(labels);
+		var svg = d3.select("#chart_10").append("svg")
+			.attr("width", width_10 + margin_10.left + margin_10.right)
+			.attr("height", height_10 + margin_10.top + margin_10.bottom)
+			.attr("class", "box")    
+			.append("g")
+			.attr("transform", "translate(" + margin_10.left + "," + margin_10.top + ")");
+		
+		// the x-axis
+		var x = d3.scale.ordinal()	   
+			.domain( data.map(function(d) {console.log(d[0]); return d[0] } ) )	    
+			.rangeRoundBands([0 , width_10], 0.7, 0.3); 		
+		var xAxis = d3.svg.axis()
+			.scale(x)
+			.orient("bottom");
+		// the y-axis
+		var y = d3.scale.linear()
+			.domain([min, max])
+			.range([height_10 + margin_10.top, 0 + margin_10.top]);
+		
+		var yAxis = d3.svg.axis()
+	    .scale(y)
+	    .orient("left");
+		// draw the boxplots
+		var colorCodes = ['#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414'];
+		
+		svg.selectAll(".box")	   
+	      .data(data)
+		  .enter().append("g")
+			.attr("transform", function(d) {console.log(x(d[0])); return "translate(" +  x(d[0])  + "," + margin_10.top + ")"; } )
+			.call(chart.width(x.rangeBand()))
+			.attr('fill',function(d,i) {for(var x=0; x < set_cultivar.length; x++)
+				if(i==x){console.log(colorCodes[x]);return colorCodes[x]}
+		})
+		      
+		// add a title
+		svg.append("text")
+	        .attr("x", (width_10 / 2))             
+	        .attr("y", 0 + (margin_10.top / 2))
+	        .attr("text-anchor", "middle")  
+	        .style("font-size", "14px") 
+	        //.style("text-decoration", "underline")  
+	        .text("Gene_id : {{query}},  Stage : 10DAF");
+	 
+		 // draw y axis
+		svg.append("g")
+	        .attr("class", "y axis")
+	        .call(yAxis)
+			.append("text") // and text1
+			  .attr("transform", "rotate(-90)")
+			  .attr("y", -40)
+			  .attr('x', -150)
+			  .attr("dy", ".71em")
+			  .style("text-anchor", "end")
+			  .style("font-size", "10px") 
+			  .text("TPM");		
+		
+		// draw x axis
+		svg.append("g")
+		    .attr("class", "x axis")
+		    .attr("transform", "translate(0," + (height_10  + margin_10.top + 5) + ")")
+		    .call(xAxis)
+			.selectAll("text")
+				.attr("y", 0)
+			    .attr("x", 9)
+			    .attr("dy", ".35em")
+			    .attr("transform", "rotate(90)")
+			    .style("text-anchor", "start");
+
+
+	        //.text("treat"); 
+	});
+	// Returns a function to compute the interquartile range.
+	function iqr(k) {
+	  return function(d, i) {
+	    var q1 = d.quartiles[0],
+	        q3 = d.quartiles[2],
+	        iqr = (q3 - q1) * k,
+	        i = -1,
+	        j = d.length;
+	    while (d[++i] < q1 - iqr);
+	    while (d[--j] > q3 + iqr);
+	    return [i, j];
+	  };
+	}
+</script>
+
+<script>
+	//chart_30
+	var labels = true; // show the text labels beside individual boxplots?
+	var margin_30 = {top: 30, right: 50, bottom: 200, left: 50};
+	var  width_30 = 1600 - margin_30.left - margin_30.right;
+	var height_30 = 500 - margin_30.top - margin_30.bottom;
+					
+	var min = Infinity,
+		max = -Infinity;
+					
+	// parse in the data
+	d3.csv('{{csv_file_30}}', function(error, csv) {
+	// using an array of arrays with
+	// data[n][2] 
+	// where n = number of columns in the csv file 
+	// data[i][0] = name of the ith column
+	// data[i][1] = array of values of ith column
+		
+		var cultivar_list = [];
+		for(var i = 0; i < csv.length; i++){
+				cultivar_list.push(csv[i].cultivar)
+			};
+		var set_cultivar = cultivar_list.reduce(function(a,b){
+	  		if (a.indexOf(b) < 0 ) a.push(b);
+	  			return a;
+	  		},[]);
+		
+		var data = [];
+		for (var i = 0; i <  set_cultivar.length; i ++){
+			data[i]    = [];
+			data[i][0] = [];
+			data[i][1] = [];
+			
+			data[i][0].push(set_cultivar[i])
+			
+			for (var j =0; j < csv.length; j++){
+				if(csv[j].cultivar == set_cultivar[i]){
+					data[i][1].push(Math.fround(csv[j].tpm));
+				};
+			}
+		}
+		
+		
+		csv.forEach(function(x){
+			var tpm_value = Math.fround(x.tpm)
+			if (tpm_value > max) max = tpm_value;
+			if (tpm_value < min) min = tpm_value;
+		})
+		var chart = d3.box()
+			.whiskers(iqr(1.5))
+			.height(height_30)	
+			.domain([min, max])
+			.showLabels(labels);
+		var svg = d3.select("#chart_30").append("svg")
+			.attr("width", width_30 + margin_30.left + margin_30.right)
+			.attr("height", height_30 + margin_30.top + margin_30.bottom)
+			.attr("class", "box")    
+			.append("g")
+			.attr("transform", "translate(" + margin_30.left + "," + margin_30.top + ")");
+		
+		// the x-axis
+		var x = d3.scale.ordinal()	   
+			.domain( data.map(function(d) {console.log(d[0]); return d[0] } ) )	    
+			.rangeRoundBands([0 , width_30], 0.7, 0.3); 		
+		var xAxis = d3.svg.axis()
+			.scale(x)
+			.orient("bottom");
+		// the y-axis
+		var y = d3.scale.linear()
+			.domain([min, max])
+			.range([height_30 + margin_30.top, 0 + margin_30.top]);
+		
+		var yAxis = d3.svg.axis()
+	    .scale(y)
+	    .orient("left");
+		// draw the boxplots
+		var colorCodes = ['#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414','#F7DC6F', '#CD5C5C', '#58D68D','#FDFEFE', '#513232', '#4B3F3F', '#CF1414'];
+		
+		svg.selectAll(".box")	   
+	      .data(data)
+		  .enter().append("g")
+			.attr("transform", function(d) {console.log(x(d[0])); return "translate(" +  x(d[0])  + "," + margin_30.top + ")"; } )
+			.call(chart.width(x.rangeBand()))
+			.attr('fill',function(d,i) {for(var x=0; x < set_cultivar.length; x++)
+				if(i==x){console.log(colorCodes[x]);return colorCodes[x]}
+		})
+		      
+		// add a title
+		svg.append("text")
+	        .attr("x", (width_30 / 2))             
+	        .attr("y", 0 + (margin_30.top / 2))
+	        .attr("text-anchor", "middle")  
+	        .style("font-size", "14px") 
+	        //.style("text-decoration", "underline")  
+	        .text("Gene_id : {{query}},  Stage : 30DAF");
+	 
+		 // draw y axis
+		svg.append("g")
+	        .attr("class", "y axis")
+	        .call(yAxis)
+			.append("text") // and text1
+			  .attr("transform", "rotate(-90)")
+			  .attr("y", -40)
+			  .attr('x', -150)
+			  .attr("dy", ".71em")
+			  .style("text-anchor", "end")
+			  .style("font-size", "10px") 
+			  .text("TPM");		
+		
+		// draw x axis
+		svg.append("g")
+		    .attr("class", "x axis")
+		    .attr("transform", "translate(0," + (height_30  + margin_30.top + 5) + ")")
+		    .call(xAxis)
+			.selectAll("text")
+				.attr("y", 0)
+			    .attr("x", 9)
+			    .attr("dy", ".35em")
+			    .attr("transform", "rotate(90)")
+			    .style("text-anchor", "start");
+
+
+	        //.text("treat"); 
+	});
+	// Returns a function to compute the interquartile range.
+	function iqr(k) {
+	  return function(d, i) {
+	    var q1 = d.quartiles[0],
+	        q3 = d.quartiles[2],
+	        iqr = (q3 - q1) * k,
+	        i = -1,
+	        j = d.length;
+	    while (d[++i] < q1 - iqr);
+	    while (d[--j] > q3 + iqr);
+	    return [i, j];
+	  };
+	}
+</script>
